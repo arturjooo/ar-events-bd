@@ -61,23 +61,26 @@ export default function GateCheck() {
     
     const cleanedId = cleanScannedText(manualId);
     console.log('Manual verification - Searching for Ticket ID:', cleanedId);
+    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
     
-    // Explicit column query for ticket_id using maybeSingle to avoid 400 errors
-    const { data: booking, error } = await supabase
+    // Simplified query using ilike for flexibility
+    const { data, error } = await supabase
       .from('bookings')
       .select('*')
-      .eq('ticket_id', cleanedId)
-      .maybeSingle();
+      .ilike('ticket_id', cleanedId);
 
     console.error('Manual Supabase Query Error:', error);
-    console.log('Manual Query Result:', booking);
+    console.log('Manual Query Result:', data);
 
-    // Only show INVALID if absolutely no data found
-    if (error || !booking) {
+    // Check if data has at least one item
+    if (error || !data || data.length === 0) {
       setScanStatus('error');
       setScanResult(null);
       return;
     }
+
+    // Take the first item
+    const booking = data[0];
 
     // Check payment status first
     if (booking.status === 'pending') {
@@ -157,19 +160,19 @@ export default function GateCheck() {
       setIsScanning(false);
       
       console.log('Searching for Ticket ID:', ticketId);
+      console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL);
       
-      // Explicit column query for ticket_id using maybeSingle to avoid 400 errors
-      const { data: booking, error } = await supabase
+      // Simplified query using ilike for flexibility
+      const { data, error } = await supabase
         .from('bookings')
         .select('*')
-        .eq('ticket_id', ticketId)
-        .maybeSingle();
+        .ilike('ticket_id', ticketId);
 
       console.error('Supabase Query Error:', error);
-      console.log('Query Result:', booking);
+      console.log('Query Result:', data);
 
-      // Only show INVALID if absolutely no data found
-      if (error || !booking) {
+      // Check if data has at least one item
+      if (error || !data || data.length === 0) {
         setScanStatus('error');
         setScanResult(null);
         
@@ -179,6 +182,9 @@ export default function GateCheck() {
         }, 2000);
         return;
       }
+
+      // Take the first item
+      const booking = data[0];
 
       // Check payment status first
       if (booking.status === 'pending') {
