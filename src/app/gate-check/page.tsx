@@ -26,6 +26,7 @@ export default function GateCheck() {
   const [scanResult, setScanResult] = useState<Booking | null>(null);
   const [isScanning, setIsScanning] = useState(true);
   const [mounted, setMounted] = useState(false);
+  const [lastScanned, setLastScanned] = useState<string>('');
 
   useEffect(() => {
     setMounted(true);
@@ -67,11 +68,16 @@ export default function GateCheck() {
       
       if (!result) return;
       
-      // Extract ticket ID from QR code URL or text
+      // Smart parsing for ticket ID extraction
       let ticketId = result;
       
-      // If it's a URL, extract the ticket ID from the end
-      if (result.includes('http')) {
+      // Check if it contains /ticket/ and extract everything after the last slash
+      if (result.includes('/ticket/')) {
+        const ticketIndex = result.indexOf('/ticket/') + 8; // +8 to skip '/ticket/'
+        ticketId = result.substring(ticketIndex);
+      }
+      // Fallback: If it contains any slash, take everything after the last slash
+      else if (result.includes('/')) {
         const urlParts = result.split('/');
         ticketId = urlParts[urlParts.length - 1];
       }
@@ -79,6 +85,9 @@ export default function GateCheck() {
       // Clean up the ticket ID
       ticketId = ticketId.trim();
       console.log('Extracted ticket ID:', ticketId);
+      
+      // Store last scanned for debug display
+      setLastScanned(result);
       
       // Pause scanning for 2 seconds
       setIsScanning(false);
@@ -360,6 +369,13 @@ export default function GateCheck() {
           </motion.div>
         )}
       </div>
+      
+      {/* Debug Display */}
+      {lastScanned && (
+        <div className="fixed bottom-4 left-4 bg-gray-800/90 text-gray-300 text-xs p-2 rounded border border-gray-600 max-w-md">
+          Last Scanned: {lastScanned}
+        </div>
+      )}
     </div>
   );
 }
