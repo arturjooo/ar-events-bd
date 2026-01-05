@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { QrCode, Lock, CheckCircle, XCircle, RotateCcw, Shield } from 'lucide-react';
 import { Scanner, IDetectedBarcode } from '@yudiel/react-qr-scanner';
@@ -41,22 +41,42 @@ export default function GateCheck() {
 
     try {
       const result = detectedCodes[0]?.rawValue;
+      console.log('Scanned result:', result); // Log for debugging
+      
       if (!result) return;
-      // Extract ticket ID from QR code URL
-      const ticketIdMatch = result.match(/\/verify\/([^\/]+)/);
-      const ticketId = ticketIdMatch ? ticketIdMatch[1] : result;
-
-      // Find the booking in Supabase
+      
+      // Extract ticket ID from QR code URL or text
+      let ticketId = result;
+      
+      // If it's a URL, extract the ticket ID from the end
+      if (result.includes('http')) {
+        const urlParts = result.split('/');
+        ticketId = urlParts[urlParts.length - 1];
+      }
+      
+      // Clean up the ticket ID
+      ticketId = ticketId.trim();
+      console.log('Extracted ticket ID:', ticketId);
+      
+      // Pause scanning for 2 seconds
+      setIsScanning(false);
+      
+      // Find booking in Supabase with case-insensitive comparison
       const { data: booking, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('ticket_id', ticketId)
+        .ilike('ticket_id', ticketId) // Case-insensitive search
         .single();
 
       if (error || !booking) {
         setScanStatus('error');
         setScanResult(null);
-        setIsScanning(false);
+        
+        // Wait 2 seconds before allowing next scan
+        setTimeout(() => {
+          setIsScanning(true);
+        }, 2000);
         return;
       }
 
@@ -64,7 +84,11 @@ export default function GateCheck() {
       if (booking.checked_in) {
         setScanStatus('already_used');
         setScanResult(booking);
-        setIsScanning(false);
+        
+        // Wait 2 seconds before allowing next scan
+        setTimeout(() => {
+          setIsScanning(true);
+        }, 2000);
         return;
       }
 
@@ -72,7 +96,11 @@ export default function GateCheck() {
       if (booking.status !== 'approved') {
         setScanStatus('error');
         setScanResult(null);
-        setIsScanning(false);
+        
+        // Wait 2 seconds before allowing next scan
+        setTimeout(() => {
+          setIsScanning(true);
+        }, 2000);
         return;
       }
 
@@ -91,7 +119,11 @@ export default function GateCheck() {
 
       setScanStatus('success');
       setScanResult(booking);
-      setIsScanning(false);
+      
+      // Wait 2 seconds before allowing next scan
+      setTimeout(() => {
+        setIsScanning(true);
+      }, 2000);
 
     } catch (err) {
       setScanStatus('error');
@@ -194,22 +226,26 @@ export default function GateCheck() {
             </div>
 
             <div className="bg-gray-900 rounded-2xl p-4 border border-purple-500/30">
-              <Scanner
-                onScan={handleScan}
-                styles={{
-                  container: {
-                    width: '100%',
-                    height: '400px',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                  },
-                  video: {
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                  },
-                }}
-              />
+              {useMemo(() => {
+                return (
+                  <Scanner
+                    onScan={handleScan}
+                    styles={{
+                      container: {
+                        width: '100%',
+                        height: '400px',
+                        borderRadius: '12px',
+                        overflow: 'hidden',
+                      },
+                      video: {
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'cover',
+                      },
+                    }}
+                  />
+                );
+              }, [])}
             </div>
           </div>
         )}
