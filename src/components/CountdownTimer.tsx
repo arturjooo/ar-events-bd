@@ -18,6 +18,7 @@ interface TimeLeft {
 }
 
 export default function CountdownTimer({ eventDateTime, className = "" }: CountdownTimerProps) {
+  const [mounted, setMounted] = useState(false);
   const [timeLeft, setTimeLeft] = useState<TimeLeft>({
     days: 0,
     hours: 0,
@@ -28,6 +29,12 @@ export default function CountdownTimer({ eventDateTime, className = "" }: Countd
   });
 
   useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+    
     const calculateTimeLeft = () => {
       const eventDate = new Date(eventDateTime);
       const now = new Date();
@@ -80,7 +87,16 @@ export default function CountdownTimer({ eventDateTime, className = "" }: Countd
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [eventDateTime]);
+  }, [eventDateTime, mounted]);
+
+  // Don't render until mounted to prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className={`inline-flex items-center gap-2 px-3 py-1 bg-purple-600/20 border border-purple-500/50 rounded-full ${className}`}>
+        <span className="text-purple-400 font-bold text-sm">Loading...</span>
+      </div>
+    );
+  }
 
   if (timeLeft.isHappeningNow) {
     return (

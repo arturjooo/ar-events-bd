@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { motion } from 'framer-motion';
 import { QrCode, Lock, CheckCircle, XCircle, RotateCcw, Shield } from 'lucide-react';
 import { Scanner, IDetectedBarcode } from '@yudiel/react-qr-scanner';
@@ -18,12 +19,33 @@ interface Booking {
 }
 
 export default function GateCheck() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState('');
-  const [scanResult, setScanResult] = useState<Booking | null>(null);
   const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'error' | 'already_used'>('idle');
+  const [scanResult, setScanResult] = useState<Booking | null>(null);
   const [isScanning, setIsScanning] = useState(true);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Dynamic import for Scanner to prevent hydration issues
+  const Scanner = useMemo(() => {
+    if (!mounted) return null;
+    return dynamic(() => import('@yudiel/react-qr-scanner').then(mod => ({ default: mod.Scanner })), {
+      ssr: false,
+      loading: () => (
+        <div className="w-full h-[400px] bg-gray-800 rounded-lg flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+            <p className="text-gray-400">Loading Scanner...</p>
+          </div>
+        </div>
+      )
+    });
+  }, [mounted]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -226,26 +248,24 @@ export default function GateCheck() {
             </div>
 
             <div className="bg-gray-900 rounded-2xl p-4 border border-purple-500/30">
-              {useMemo(() => {
-                return (
-                  <Scanner
-                    onScan={handleScan}
-                    styles={{
-                      container: {
-                        width: '100%',
-                        height: '400px',
-                        borderRadius: '12px',
-                        overflow: 'hidden',
-                      },
-                      video: {
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                      },
-                    }}
-                  />
-                );
-              }, [])}
+              {mounted && Scanner && (
+                <Scanner
+                  onScan={handleScan}
+                  styles={{
+                    container: {
+                      width: '100%',
+                      height: '400px',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                    },
+                    video: {
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                    },
+                  }}
+                />
+              )}
             </div>
           </div>
         )}
