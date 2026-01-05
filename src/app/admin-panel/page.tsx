@@ -3,13 +3,66 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Search, Check, X, MessageCircle, QrCode, Users, Calendar, MapPin, Trash2, Plus, Music, AlertCircle, TrendingUp, DollarSign, Ticket, BarChart3 } from "lucide-react";
+import { Search, Check, X, MessageCircle, Users, Calendar, MapPin, Trash2, Plus, Music, AlertCircle, TrendingUp, DollarSign, Ticket, BarChart3 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from '@/lib/supabaseClient';
 import EventEditModal from './event-edit-modal';
 import BandEditModal from './band-edit-modal';
+import DashboardStats from '@/components/admin/DashboardStats';
+import BookingManagement from '@/components/admin/BookingManagement';
+import EventManagement from '@/components/admin/EventManagement';
+import BandManagement from '@/components/admin/BandManagement';
 import { NotificationContainer } from '@/components/notification';
 import { useNotifications } from '@/hooks/useNotifications';
+
+// Skeleton Loader Component
+const SkeletonLoader = ({ type }: { type: 'card' | 'row' | 'stat' }) => {
+  if (type === 'card') {
+    return (
+      <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/30">
+        <div className="animate-pulse">
+          <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
+          <div className="h-4 bg-gray-700 rounded w-1/2 mb-2"></div>
+          <div className="h-4 bg-gray-700 rounded w-2/3 mb-4"></div>
+          <div className="flex gap-2">
+            <div className="h-8 bg-gray-700 rounded w-20"></div>
+            <div className="h-8 bg-gray-700 rounded w-20"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (type === 'row') {
+    return (
+      <div className="bg-gray-900/50 backdrop-blur-sm rounded-lg p-4 border border-gray-700/30 animate-pulse">
+        <div className="flex items-center justify-between">
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-gray-700 rounded w-1/3"></div>
+            <div className="h-3 bg-gray-700 rounded w-1/4"></div>
+            <div className="h-3 bg-gray-700 rounded w-1/5"></div>
+          </div>
+          <div className="flex gap-2">
+            <div className="h-8 bg-gray-700 rounded w-16"></div>
+            <div className="h-8 bg-gray-700 rounded w-16"></div>
+            <div className="h-8 bg-gray-700 rounded w-16"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  if (type === 'stat') {
+    return (
+      <div className="bg-gray-900/50 backdrop-blur-sm rounded-xl p-6 border border-gray-700/30 animate-pulse">
+        <div className="h-8 bg-gray-700 rounded w-1/3 mb-3"></div>
+        <div className="h-12 bg-gray-700 rounded w-1/2"></div>
+      </div>
+    );
+  }
+  
+  return null;
+};
 
 interface Booking {
   id: string;
@@ -63,6 +116,12 @@ export default function AdminPanel() {
   const [showBandModal, setShowBandModal] = useState(false);
   const [deletingEventId, setDeletingEventId] = useState<number | null>(null);
   const [deletingBandId, setDeletingBandId] = useState<number | null>(null);
+  
+  // Tab-specific loading states
+  const [loadingBookings, setLoadingBookings] = useState(true);
+  const [loadingEvents, setLoadingEvents] = useState(true);
+  const [loadingAllEvents, setLoadingAllEvents] = useState(true);
+  const [loadingBands, setLoadingBands] = useState(true);
 
   useEffect(() => {
     // Check authentication
@@ -76,6 +135,7 @@ export default function AdminPanel() {
     const fetchData = async () => {
       try {
         // Fetch bookings
+        setLoadingBookings(true);
         const { data: bookingsData, error: bookingsError } = await supabase
           .from('bookings')
           .select('*');
@@ -93,8 +153,10 @@ export default function AdminPanel() {
           }));
           setBookings(processedBookings);
         }
+        setLoadingBookings(false);
 
         // Fetch pending events
+        setLoadingEvents(true);
         const { data: pendingEventsData, error: pendingEventsError } = await supabase
           .from('events')
           .select('*')
@@ -113,8 +175,10 @@ export default function AdminPanel() {
           }));
           setPendingEvents(processedPendingEvents);
         }
+        setLoadingEvents(false);
 
         // Fetch all events
+        setLoadingAllEvents(true);
         const { data: allEventsData, error: allEventsError } = await supabase
           .from('events')
           .select('*');
@@ -132,8 +196,10 @@ export default function AdminPanel() {
           }));
           setAllEvents(processedAllEvents);
         }
+        setLoadingAllEvents(false);
 
         // Fetch bands
+        setLoadingBands(true);
         const { data: bandsData, error: bandsError } = await supabase
           .from('bands')
           .select('*');
@@ -144,6 +210,7 @@ export default function AdminPanel() {
         } else if (bandsData) {
           setBands(bandsData);
         }
+        setLoadingBands(false);
       } catch (err) {
         console.error('Unexpected error fetching admin data:', err);
         // Set empty arrays on critical error
@@ -151,6 +218,10 @@ export default function AdminPanel() {
         setPendingEvents([]);
         setAllEvents([]);
         setBands([]);
+        setLoadingBookings(false);
+        setLoadingEvents(false);
+        setLoadingAllEvents(false);
+        setLoadingBands(false);
       }
     };
 
@@ -710,176 +781,13 @@ export default function AdminPanel() {
               </motion.div>
             </motion.div>
           ) : activeTab === 'bookings' ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.2 }}
-                  className="bg-gray-900 rounded-lg p-6 border border-purple-500/30"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <Users className="text-purple-400" size={24} />
-                    <h3 className="text-lg font-semibold">Total Bookings</h3>
-                  </div>
-                  <p className="text-3xl font-bold text-purple-400">{bookings.length}</p>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.3 }}
-                  className="bg-gray-900 rounded-lg p-6 border border-purple-500/30"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <Check className="text-green-400" size={24} />
-                    <h3 className="text-lg font-semibold">Paid</h3>
-                  </div>
-                  <p className="text-3xl font-bold text-green-400">{bookings.filter(b => b.status === 'approved').length}</p>
-                </motion.div>
-
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.4 }}
-                  className="bg-gray-900 rounded-lg p-6 border border-purple-500/30"
-                >
-                  <div className="flex items-center gap-3 mb-2">
-                    <Calendar className="text-yellow-400" size={24} />
-                    <h3 className="text-lg font-semibold">Pending</h3>
-                  </div>
-                  <p className="text-3xl font-bold text-yellow-400">{bookings.filter(b => b.status === 'pending').length}</p>
-                </motion.div>
-              </div>
-
-              <motion.div
-                initial={{ opacity: 0, y: 30 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.5 }}
-                className="space-y-4"
-              >
-                {filteredBookings.map((booking, index) => (
-                  <motion.div
-                    key={booking.id}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.4, delay: 0.6 + index * 0.05 }}
-                    className="bg-gray-900 rounded-lg p-6 border border-purple-500/30 hover:border-purple-500 transition-all"
-                  >
-                    <div className="flex flex-col lg:flex-row gap-6">
-                      <div className="flex-1 space-y-3">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <h3 className="text-xl font-bold text-purple-400 mb-1">{booking.event_name}</h3>
-                            <p className="text-gray-400 text-sm">Ticket ID: {booking.ticket_id}</p>
-                          </div>
-                          <div className={`px-3 py-1 rounded-full text-sm font-medium ${
-                            booking.status === 'approved' 
-                              ? 'bg-green-900/30 text-green-400 border border-green-500/30' 
-                              : 'bg-yellow-900/30 text-yellow-400 border border-yellow-500/30'
-                          }`}>
-                            {booking.status === 'approved' ? 'Approved' : 'Pending'}
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-4">
-                          <div>
-                            <p className="text-gray-400 text-sm mb-1">Event Name</p>
-                            <p className="text-white font-medium">{booking.event_name}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm mb-1">Attendee Name</p>
-                            <p className="text-white font-medium">{booking.user_name}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm mb-1">WhatsApp</p>
-                            <p className="text-white font-medium">{booking.whatsapp}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm mb-1">Transaction ID</p>
-                            <p className="text-white font-mono text-sm">{booking.trx_id}</p>
-                          </div>
-                          <div>
-                            <p className="text-gray-400 text-sm mb-1">Booking Date</p>
-                            <p className="text-white font-medium">{new Date(booking.created_at).toLocaleDateString()}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-center gap-4">
-                        <div className="p-4 bg-white rounded-lg">
-                          {booking.ticket_id ? (
-                            <QRCodeSVG 
-                              value={`${window.location.origin}/verify/${booking.ticket_id}`} 
-                              size={120}
-                              level="H"
-                              includeMargin={true}
-                              bgColor="#FFFFFF"
-                              fgColor="#000000"
-                            />
-                          ) : (
-                            <div className="w-[120px] h-[120px] bg-gray-200 rounded-lg flex items-center justify-center">
-                              <AlertCircle className="w-8 h-8 text-red-500" />
-                            </div>
-                          )}
-                        </div>
-                        
-                        {booking.status === 'pending' && (
-                          <div className="flex gap-2">
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleApproveAndSend(booking)}
-                              className="flex items-center gap-2 px-4 py-2 bg-green-600 rounded-lg hover:bg-green-700 transition-colors font-medium"
-                            >
-                              <MessageCircle size={16} />
-                              Approve & Send to WhatsApp
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleDeleteBooking(booking.id)}
-                              className="flex items-center gap-2 px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition-colors font-medium"
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </motion.button>
-                          </div>
-                        )}
-                        
-                        {booking.status === 'approved' && (
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 text-green-400 font-medium">
-                              <Check size={16} />
-                              Already Approved
-                            </div>
-                            <motion.button
-                              whileHover={{ scale: 1.05 }}
-                              whileTap={{ scale: 0.95 }}
-                              onClick={() => handleDeleteBooking(booking.id)}
-                              className="flex items-center gap-2 px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700 transition-colors font-medium"
-                            >
-                              <Trash2 size={16} />
-                              Delete
-                            </motion.button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-
-                {filteredBookings.length === 0 && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center py-12"
-                  >
-                    <p className="text-gray-400 text-lg">No bookings found</p>
-                  </motion.div>
-                )}
-              </motion.div>
-            </>
+            <BookingManagement 
+              bookings={bookings}
+              loading={loadingBookings}
+              onDeleteBooking={handleDeleteBooking}
+              onApproveAndSend={handleApproveAndSend}
+              searchQuery={searchQuery}
+            />
           ) : activeTab === 'events' ? (
             /* Event Requests Tab */
             <>
@@ -1258,12 +1166,7 @@ export default function AdminPanel() {
           }}
         />
       )}
-
-      {/* Notification Container */}
-      <NotificationContainer 
-        notifications={notifications} 
-        onClose={removeNotification} 
-      />
+    </div>
     </div>
   );
 }

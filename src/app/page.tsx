@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Search, MapPin, Calendar, Clock, Users, Music, ChevronRight, Star, Check, X, QrCode, MessageCircle, AlertCircle, Upload, Tag, Info, FileImage, Sparkles, X as CloseIcon } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from '@/lib/supabaseClient';
+import CountdownTimer from '@/components/CountdownTimer';
 
 // Image compression function
 const compressImage = (file: File): Promise<string> => {
@@ -617,6 +618,11 @@ export default function Home() {
                         Tickets Left: {event.available_tickets || 0}
                       </p>
                     </div>
+                    
+                    {/* Countdown Timer */}
+                    <div className="mb-4">
+                      <CountdownTimer eventDateTime={event.date_time} />
+                    </div>
                     <motion.button
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
@@ -890,6 +896,17 @@ export default function Home() {
                             </p>
                           </div>
                         </div>
+                        
+                        {/* Countdown Timer */}
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-purple-600/20 rounded-lg flex items-center justify-center">
+                            <Clock className="w-5 h-5 text-purple-400" />
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-sm">Event Starts In</p>
+                            <CountdownTimer eventDateTime={selectedEvent.date_time} />
+                          </div>
+                        </div>
                       </div>
 
                       <div className="space-y-4">
@@ -1079,6 +1096,11 @@ export default function Home() {
                   <h4 className="font-semibold text-white mb-2">{selectedEvent.name}</h4>
                   <p className="text-gray-400 text-sm">{selectedEvent.venue}</p>
                   <p className="text-purple-400 font-bold">৳{selectedEvent.price}</p>
+                  
+                  {/* Countdown Timer */}
+                  <div className="mt-3">
+                    <CountdownTimer eventDateTime={selectedEvent.date_time} />
+                  </div>
                 </div>
                 
                 <div className="mb-6 p-4 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
