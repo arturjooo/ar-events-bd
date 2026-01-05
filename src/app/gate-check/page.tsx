@@ -27,10 +27,77 @@ export default function GateCheck() {
   const [isScanning, setIsScanning] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [lastScanned, setLastScanned] = useState<string>('');
+  const [manualId, setManualId] = useState<string>('');
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Robust ID extraction function
+  const cleanScannedText = (text: string): string => {
+    console.log('Raw scanned text:', text);
+    
+    let cleaned = text;
+    
+    // If it's a URL, extract everything after the last /
+    if (text.includes('http')) {
+      const parts = text.split('/');
+      cleaned = parts[parts.length - 1];
+    }
+    
+    // Remove any hidden characters, spaces, or newlines
+    cleaned = cleaned.replace(/[^a-zA-Z0-9-]/g, '');
+    
+    // Convert to uppercase to match database records
+    cleaned = cleaned.toUpperCase();
+    
+    console.log('Cleaned ID:', cleaned);
+    return cleaned;
+  };
+
+  // Manual verification function
+  const handleManualVerify = async () => {
+    if (!manualId.trim()) return;
+    
+    const cleanedId = cleanScannedText(manualId);
+    console.log('Manual verification - Searching for ID:', cleanedId);
+    
+    // Find booking in Supabase
+    const { data: booking, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('ticket_id', cleanedId)
+      .single();
+
+    if (error || !booking) {
+      setScanStatus('error');
+      setScanResult(null);
+      return;
+    }
+
+    // Check if already checked in
+    if (booking.checked_in) {
+      setScanStatus('already_used');
+      setScanResult(booking);
+      return;
+    }
+
+    // Mark as checked in
+    const { error: updateError } = await supabase
+      .from('bookings')
+      .update({ checked_in: true })
+      .eq('id', booking.id);
+
+    if (updateError) {
+      setScanStatus('error');
+      setScanResult(null);
+      return;
+    }
+
+    setScanStatus('success');
+    setScanResult(booking);
+    setManualId(''); // Clear manual input
+  };
 
   // Dynamic import for Scanner to prevent hydration issues
   const Scanner = useMemo(() => {
@@ -64,43 +131,29 @@ export default function GateCheck() {
 
     try {
       const result = detectedCodes[0]?.rawValue;
-      console.log('Scanned result:', result); // Log for debugging
       
       if (!result) return;
-      
-      // Smart parsing for ticket ID extraction
-      let ticketId = result;
-      
-      // Check if it contains /ticket/ and extract everything after the last slash
-      if (result.includes('/ticket/')) {
-        const ticketIndex = result.indexOf('/ticket/') + 8; // +8 to skip '/ticket/'
-        ticketId = result.substring(ticketIndex);
-      }
-      // Fallback: If it contains any slash, take everything after the last slash
-      else if (result.includes('/')) {
-        const urlParts = result.split('/');
-        ticketId = urlParts[urlParts.length - 1];
-      }
-      
-      // Clean up the ticket ID
-      ticketId = ticketId.trim();
-      console.log('Extracted ticket ID:', ticketId);
       
       // Store last scanned for debug display
       setLastScanned(result);
       
+      // Use robust ID extraction
+      const ticketId = cleanScannedText(result);
+      
       // Pause scanning for 2 seconds
       setIsScanning(false);
       
-      // Find booking in Supabase with case-insensitive comparison
+      console.log('Searching for ID:', ticketId);
+      
+      // Find booking in Supabase
       const { data: booking, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('ticket_id', ticketId)
-        .ilike('ticket_id', ticketId) // Case-insensitive search
         .single();
 
       if (error || !booking) {
+        console.log('Ticket not found:', error);
         setScanStatus('error');
         setScanResult(null);
         
@@ -110,6 +163,8 @@ export default function GateCheck() {
         }, 2000);
         return;
       }
+
+      console.log('Ticket found:', booking);
 
       // Check if already checked in
       if (booking.checked_in) {
@@ -142,6 +197,7 @@ export default function GateCheck() {
         .eq('id', booking.id);
 
       if (updateError) {
+        console.log('Update error:', updateError);
         setScanStatus('error');
         setScanResult(null);
         setIsScanning(false);
@@ -157,6 +213,7 @@ export default function GateCheck() {
       }, 2000);
 
     } catch (err) {
+      console.log('Scan error:', err);
       setScanStatus('error');
       setScanResult(null);
       setIsScanning(false);
@@ -276,6 +333,28 @@ export default function GateCheck() {
                 />
               )}
             </div>
+            
+            {/* Manual Entry Fallback */}
+            <div className="bg-gray-900 rounded-2xl p-4 border border-purple-500/30">
+              <h3 className="text-lg font-semibold text-purple-400 mb-3">Manual Entry</h3>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={manualId}
+                  onChange={(e) => setManualId(e.target.value)}
+                  placeholder="Enter ticket ID (e.g., LALON-TKT-123)"
+                  className="flex-1 px-4 py-2 bg-black border border-purple-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-all"
+                />
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleManualVerify}
+                  className="px-6 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors font-medium text-white"
+                >
+                  Verify Manually
+                </motion.button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -293,7 +372,7 @@ export default function GateCheck() {
             >
               <CheckCircle className="w-12 h-12 text-white" />
             </motion.div>
-            <h2 className="text-3xl font-bold text-green-400 mb-4">CHECKED-IN SUCCESSFULLY</h2>
+            <h2 className="text-3xl font-bold text-green-400 mb-4">VALID - WELCOME</h2>
             <div className="space-y-2 text-white">
               <p className="text-xl font-semibold">{scanResult.user_name}</p>
               <p className="text-gray-300">{scanResult.event_name}</p>
@@ -372,8 +451,11 @@ export default function GateCheck() {
       
       {/* Debug Display */}
       {lastScanned && (
-        <div className="fixed bottom-4 left-4 bg-gray-800/90 text-gray-300 text-xs p-2 rounded border border-gray-600 max-w-md">
-          Last Scanned: {lastScanned}
+        <div className="fixed bottom-4 left-4 bg-gray-800/90 text-gray-300 text-xs p-3 rounded border border-gray-600 max-w-md">
+          <div className="space-y-1">
+            <div><strong>Scanned Raw Text:</strong> {lastScanned}</div>
+            <div><strong>Cleaned ID:</strong> {cleanScannedText(lastScanned)}</div>
+          </div>
         </div>
       )}
     </div>
