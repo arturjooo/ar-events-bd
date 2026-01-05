@@ -6,6 +6,55 @@ import { Search, MapPin, Calendar, Clock, Users, Music, ChevronRight, Star, Chec
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from '@/lib/supabaseClient';
 
+// Image compression function
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (e) => {
+      const img = new Image();
+      img.src = e.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Calculate new dimensions (max 800px width/height)
+        let { width, height } = img;
+        const maxSize = 800;
+        if (width > height) {
+          if (width > maxSize) {
+            height = (height * maxSize) / width;
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = (width * maxSize) / height;
+            height = maxSize;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Try different quality levels to get under 200KB
+        let quality = 0.7;
+        let compressedData = canvas.toDataURL('image/jpeg', quality);
+        
+        // Reduce quality if still too large
+        while (compressedData.length > 200000 && quality > 0.1) {
+          quality -= 0.1;
+          compressedData = canvas.toDataURL('image/jpeg', quality);
+        }
+        
+        resolve(compressedData);
+      };
+    };
+  });
+};
+
 interface Event {
   id: number;
   name: string;
@@ -70,6 +119,7 @@ export default function Home() {
   const [showEventPostModal, setShowEventPostModal] = useState(false);
   const [bands, setBands] = useState<Band[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLayoutReady, setInitialLayoutReady] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formErrors, setFormErrors] = useState<Record<string, boolean>>({});
@@ -91,6 +141,9 @@ export default function Home() {
   };
 
   useEffect(() => {
+    // Set initial layout as ready immediately
+    setInitialLayoutReady(true);
+    
     // Load approved events from Supabase
     const fetchEvents = async () => {
       try {
@@ -318,17 +371,28 @@ export default function Home() {
     }
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Convert to base64 for preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setFormData(prev => ({ ...prev, bannerImage: base64String }));
-      };
-      
-      reader.readAsDataURL(file);
+      try {
+        // Show loading state for compression
+        setSubmitLoading(true);
+        
+        // Compress image before converting to base64
+        const compressedBase64 = await compressImage(file);
+        setFormData(prev => ({ ...prev, bannerImage: compressedBase64 }));
+      } catch (error) {
+        console.error('Error compressing image:', error);
+        // Fallback to original if compression fails
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          setFormData(prev => ({ ...prev, bannerImage: base64String }));
+        };
+        reader.readAsDataURL(file);
+      } finally {
+        setSubmitLoading(false);
+      }
     }
   };
 
@@ -411,7 +475,7 @@ export default function Home() {
     });
   };
 
-  if (loading) {
+  if (loading && !initialLayoutReady) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <motion.div
