@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { QrCode, Lock, CheckCircle, XCircle, RotateCcw, Shield } from 'lucide-react';
-import { Scanner } from '@yudiel/react-qr-scanner';
+import { Scanner, IDetectedBarcode } from '@yudiel/react-qr-scanner';
 import { supabase } from '@/lib/supabaseClient';
 
 interface Booking {
@@ -36,10 +36,12 @@ export default function GateCheck() {
     }
   };
 
-  const handleScan = async (result: string) => {
+  const handleScan = async (detectedCodes: IDetectedBarcode[]) => {
     if (!isScanning) return;
 
     try {
+      const result = detectedCodes[0]?.rawValue;
+      if (!result) return;
       // Extract ticket ID from QR code URL
       const ticketIdMatch = result.match(/\/verify\/([^\/]+)/);
       const ticketId = ticketIdMatch ? ticketIdMatch[1] : result;
@@ -194,11 +196,6 @@ export default function GateCheck() {
             <div className="bg-gray-900 rounded-2xl p-4 border border-purple-500/30">
               <Scanner
                 onScan={handleScan}
-                components={{
-                  audio: false,
-                  finder: true,
-                  tracker: true,
-                }}
                 styles={{
                   container: {
                     width: '100%',

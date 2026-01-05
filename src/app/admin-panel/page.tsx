@@ -1167,6 +1167,5 @@ export default function AdminPanel() {
         />
       )}
     </div>
-    </div>
   );
 }
