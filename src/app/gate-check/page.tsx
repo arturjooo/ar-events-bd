@@ -62,12 +62,12 @@ export default function GateCheck() {
     const cleanedId = cleanScannedText(manualId);
     console.log('Manual verification - Searching for Ticket ID:', cleanedId);
     
-    // Explicit column query for ticket_id
+    // Explicit column query for ticket_id using maybeSingle to avoid 400 errors
     const { data: booking, error } = await supabase
       .from('bookings')
       .select('*')
       .eq('ticket_id', cleanedId)
-      .single();
+      .maybeSingle();
 
     console.error('Manual Supabase Query Error:', error);
     console.log('Manual Query Result:', booking);
@@ -97,7 +97,8 @@ export default function GateCheck() {
     const { error: updateError } = await supabase
       .from('bookings')
       .update({ checked_in: true })
-      .eq('id', booking.id);
+      .eq('id', booking.id)
+      .select();
 
     if (updateError) {
       console.log('Manual Update error:', updateError);
@@ -157,12 +158,12 @@ export default function GateCheck() {
       
       console.log('Searching for Ticket ID:', ticketId);
       
-      // Explicit column query for ticket_id
+      // Explicit column query for ticket_id using maybeSingle to avoid 400 errors
       const { data: booking, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('ticket_id', ticketId)
-        .single();
+        .maybeSingle();
 
       console.error('Supabase Query Error:', error);
       console.log('Query Result:', booking);
@@ -207,7 +208,8 @@ export default function GateCheck() {
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ checked_in: true })
-        .eq('id', booking.id);
+        .eq('id', booking.id)
+        .select();
 
       if (updateError) {
         console.log('Update error:', updateError);
