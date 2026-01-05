@@ -22,7 +22,7 @@ export default function GateCheck() {
   const [password, setPassword] = useState('');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [error, setError] = useState('');
-  const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'error' | 'already_used'>('idle');
+  const [scanStatus, setScanStatus] = useState<'idle' | 'success' | 'error' | 'already_used' | 'payment_pending'>('idle');
   const [scanResult, setScanResult] = useState<Booking | null>(null);
   const [isScanning, setIsScanning] = useState(true);
   const [mounted, setMounted] = useState(false);
@@ -60,35 +60,47 @@ export default function GateCheck() {
     if (!manualId.trim()) return;
     
     const cleanedId = cleanScannedText(manualId);
-    console.log('Manual verification - Searching for ID:', cleanedId);
+    console.log('Manual verification - Searching for Ticket ID:', cleanedId);
     
-    // Find booking in Supabase
+    // Explicit column query for ticket_id
     const { data: booking, error } = await supabase
       .from('bookings')
       .select('*')
       .eq('ticket_id', cleanedId)
       .single();
 
+    console.error('Manual Supabase Query Error:', error);
+    console.log('Manual Query Result:', booking);
+
+    // Only show INVALID if absolutely no data found
     if (error || !booking) {
       setScanStatus('error');
       setScanResult(null);
       return;
     }
 
-    // Check if already checked in
+    // Check payment status first
+    if (booking.status === 'pending') {
+      setScanStatus('payment_pending');
+      setScanResult(booking);
+      return;
+    }
+
+    // If status is approved, check if already checked in
     if (booking.checked_in) {
       setScanStatus('already_used');
       setScanResult(booking);
       return;
     }
 
-    // Mark as checked in
+    // Valid approved ticket - mark as checked in
     const { error: updateError } = await supabase
       .from('bookings')
       .update({ checked_in: true })
       .eq('id', booking.id);
 
     if (updateError) {
+      console.log('Manual Update error:', updateError);
       setScanStatus('error');
       setScanResult(null);
       return;
@@ -143,17 +155,20 @@ export default function GateCheck() {
       // Pause scanning for 2 seconds
       setIsScanning(false);
       
-      console.log('Searching for ID:', ticketId);
+      console.log('Searching for Ticket ID:', ticketId);
       
-      // Find booking in Supabase
+      // Explicit column query for ticket_id
       const { data: booking, error } = await supabase
         .from('bookings')
         .select('*')
         .eq('ticket_id', ticketId)
         .single();
 
+      console.error('Supabase Query Error:', error);
+      console.log('Query Result:', booking);
+
+      // Only show INVALID if absolutely no data found
       if (error || !booking) {
-        console.log('Ticket not found:', error);
         setScanStatus('error');
         setScanResult(null);
         
@@ -164,9 +179,19 @@ export default function GateCheck() {
         return;
       }
 
-      console.log('Ticket found:', booking);
+      // Check payment status first
+      if (booking.status === 'pending') {
+        setScanStatus('payment_pending');
+        setScanResult(booking);
+        
+        // Wait 2 seconds before allowing next scan
+        setTimeout(() => {
+          setIsScanning(true);
+        }, 2000);
+        return;
+      }
 
-      // Check if already checked in
+      // If status is approved, check if already checked in
       if (booking.checked_in) {
         setScanStatus('already_used');
         setScanResult(booking);
@@ -178,19 +203,7 @@ export default function GateCheck() {
         return;
       }
 
-      // Check if booking is approved
-      if (booking.status !== 'approved') {
-        setScanStatus('error');
-        setScanResult(null);
-        
-        // Wait 2 seconds before allowing next scan
-        setTimeout(() => {
-          setIsScanning(true);
-        }, 2000);
-        return;
-      }
-
-      // Mark as checked in
+      // Valid approved ticket - mark as checked in
       const { error: updateError } = await supabase
         .from('bookings')
         .update({ checked_in: true })
@@ -415,6 +428,38 @@ export default function GateCheck() {
               whileTap={{ scale: 0.95 }}
               onClick={resetScanner}
               className="mt-6 px-6 py-3 bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors font-medium"
+            >
+              Scan Next Ticket
+            </motion.button>
+          </motion.div>
+        )}
+
+        {scanStatus === 'payment_pending' && scanResult && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-gradient-to-br from-yellow-900/50 to-yellow-800/50 rounded-2xl p-8 border border-yellow-500/50 text-center"
+          >
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              className="w-24 h-24 bg-yellow-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-yellow-500/50"
+            >
+              <XCircle className="w-12 h-12 text-white" />
+            </motion.div>
+            <h2 className="text-3xl font-bold text-yellow-400 mb-4">PAYMENT PENDING</h2>
+            <div className="space-y-2 text-white">
+              <p className="text-xl font-semibold">{scanResult.user_name}</p>
+              <p className="text-gray-300">{scanResult.event_name}</p>
+              <p className="text-sm text-gray-400">Ticket ID: {scanResult.ticket_id}</p>
+              <p className="text-sm text-yellow-300 mt-2">This ticket payment is still pending</p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={resetScanner}
+              className="mt-6 px-6 py-3 bg-yellow-600 rounded-lg hover:bg-yellow-700 transition-colors font-medium"
             >
               Scan Next Ticket
             </motion.button>
